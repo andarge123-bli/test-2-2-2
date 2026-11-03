@@ -1,0 +1,640 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Study Buddy API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Browser authentication
+  - name: study
+    description: Study dashboard and learning analytics
+  - name: books
+    description: Course document library
+  - name: quizzes
+    description: Source-grounded practice quizzes
+  - name: chat
+    description: Study Buddy conversations
+  - name: storage
+    description: Private document uploads
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /auth/user:
+    get:
+      operationId: getCurrentAuthUser
+      tags: [auth]
+      summary: Get the current signed-in user
+      responses:
+        "200":
+          description: Authentication status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserEnvelope"
+  /login:
+    get:
+      operationId: beginBrowserLogin
+      tags: [auth]
+      summary: Start browser sign-in
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to the identity provider
+  /callback:
+    get:
+      operationId: handleBrowserLoginCallback
+      tags: [auth]
+      summary: Complete browser sign-in
+      responses:
+        "302":
+          description: Redirect after sign-in
+  /logout:
+    get:
+      operationId: logoutBrowserSession
+      tags: [auth]
+      summary: End the signed-in session
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect after sign-out
+  /mobile-auth/token-exchange:
+    post:
+      operationId: exchangeMobileAuthorizationCode
+      tags: [auth]
+      summary: Exchange an OIDC authorization code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileTokenExchangeRequest"
+      responses:
+        "200":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileTokenExchangeSuccess"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Invalid identity token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /mobile-auth/logout:
+    post:
+      operationId: logoutMobileSession
+      tags: [auth]
+      summary: End a mobile session
+      responses:
+        "200":
+          description: Session ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutSuccess"
+  /study/dashboard:
+    get:
+      operationId: getStudyDashboard
+      tags: [study]
+      summary: Get the signed-in student's study overview
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudyDashboard"
+  /books:
+    get:
+      operationId: listBooks
+      tags: [books]
+      summary: List the signed-in student's books
+      responses:
+        "200":
+          description: User-owned books
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Book"
+    post:
+      operationId: createBook
+      tags: [books]
+      summary: Process an uploaded course document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookInput"
+      responses:
+        "201":
+          description: Processed book
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookDetail"
+        "400":
+          description: Invalid document or metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /books/{bookId}:
+    get:
+      operationId: getBook
+      tags: [books]
+      summary: Get a book and its sections
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+      responses:
+        "200":
+          description: Book detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookDetail"
+        "404":
+          description: Book not found
+    delete:
+      operationId: deleteBook
+      tags: [books]
+      summary: Delete a book and its study data
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+      responses:
+        "204":
+          description: Book deleted
+  /quizzes:
+    get:
+      operationId: listQuizzes
+      tags: [quizzes]
+      summary: List recent quizzes
+      responses:
+        "200":
+          description: Recent quizzes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuizSummary"
+    post:
+      operationId: createQuiz
+      tags: [quizzes]
+      summary: Generate a quiz from a book section
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizInput"
+      responses:
+        "201":
+          description: Generated quiz
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizDetail"
+        "400":
+          description: Section does not contain enough source material
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /quizzes/{quizId}:
+    get:
+      operationId: getQuiz
+      tags: [quizzes]
+      summary: Get a quiz and its questions
+      parameters:
+        - $ref: "#/components/parameters/QuizId"
+      responses:
+        "200":
+          description: Quiz detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizDetail"
+        "404":
+          description: Quiz not found
+  /quizzes/{quizId}/answers:
+    post:
+      operationId: answerQuizQuestion
+      tags: [quizzes]
+      summary: Submit an answer to a quiz question
+      parameters:
+        - $ref: "#/components/parameters/QuizId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizAnswerInput"
+      responses:
+        "200":
+          description: Answer feedback and quiz progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizAnswerResult"
+  /analytics:
+    get:
+      operationId: getStudyAnalytics
+      tags: [study]
+      summary: Get learning progress and activity
+      responses:
+        "200":
+          description: Study analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudyAnalytics"
+  /chat/messages:
+    get:
+      operationId: listChatMessages
+      tags: [chat]
+      summary: List recent Study Buddy messages
+      parameters:
+        - name: sectionId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Recent conversation messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatMessage"
+    post:
+      operationId: sendChatMessage
+      tags: [chat]
+      summary: Ask Study Buddy a question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageInput"
+      responses:
+        "201":
+          description: Student message and tutor response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatMessage"
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a private document upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Upload URL and private object path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStorageObject
+      tags: [storage]
+      summary: Read a private uploaded document
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Document content
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Document not found
+components:
+  parameters:
+    BookId:
+      name: bookId
+      in: path
+      required: true
+      schema:
+        type: string
+    QuizId:
+      name: quizId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id: { type: string }
+        email: { type: [string, "null"], format: email }
+        firstName: { type: [string, "null"] }
+        lastName: { type: [string, "null"] }
+        profileImageUrl: { type: [string, "null"] }
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+    MobileTokenExchangeRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code: { type: string, minLength: 1 }
+        code_verifier: { type: string, minLength: 1 }
+        redirect_uri: { type: string, minLength: 1, format: uri }
+        state: { type: string, minLength: 1 }
+        nonce: { type: string, minLength: 1 }
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean, const: true }
+    StudyDashboard:
+      type: object
+      required: [user, stats, recentActivity]
+      properties:
+        user: { $ref: "#/components/schemas/StudyUser" }
+        stats: { $ref: "#/components/schemas/StudyStats" }
+        recentActivity:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityItem" }
+    StudyUser:
+      type: object
+      required: [id, firstName, university, major, currentXp, level, streak]
+      properties:
+        id: { type: string }
+        firstName: { type: string }
+        university: { type: string }
+        major: { type: string }
+        currentXp: { type: integer }
+        level: { type: integer }
+        streak: { type: integer }
+    StudyStats:
+      type: object
+      required: [bookCount, completedQuizzes, averageAccuracy, studyMinutes, weeklyXp]
+      properties:
+        bookCount: { type: integer }
+        completedQuizzes: { type: integer }
+        averageAccuracy: { type: number }
+        studyMinutes: { type: integer }
+        weeklyXp: { type: integer }
+    ActivityItem:
+      type: object
+      required: [id, kind, description, createdAt]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [book_upload, quiz_complete, chat] }
+        description: { type: string }
+        createdAt: { type: string, format: date-time }
+    Book:
+      type: object
+      required: [id, title, author, subject, fileName, objectPath, sizeBytes, totalPages, sectionCount, status, createdAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        author: { type: [string, "null"] }
+        subject: { type: string }
+        fileName: { type: string }
+        objectPath: { type: string }
+        sizeBytes: { type: integer }
+        totalPages: { type: integer }
+        sectionCount: { type: integer }
+        status: { type: string, enum: [READY, FAILED] }
+        createdAt: { type: string, format: date-time }
+    BookInput:
+      type: object
+      required: [title, subject, fileName, fileSizeBytes, objectPath]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        author: { type: string, maxLength: 200 }
+        subject: { type: string, minLength: 1, maxLength: 120 }
+        fileName: { type: string, minLength: 1, maxLength: 255 }
+        fileSizeBytes: { type: integer, minimum: 1, maximum: 20971520 }
+        objectPath: { type: string, minLength: 1 }
+    BookDetail:
+      type: object
+      required: [book, sections]
+      properties:
+        book: { $ref: "#/components/schemas/Book" }
+        sections:
+          type: array
+          items: { $ref: "#/components/schemas/BookSection" }
+    BookSection:
+      type: object
+      required: [id, chapterTitle, title, startPage, endPage, chunkCount, preview]
+      properties:
+        id: { type: string }
+        chapterTitle: { type: string }
+        title: { type: string }
+        startPage: { type: integer }
+        endPage: { type: integer }
+        chunkCount: { type: integer }
+        preview: { type: string }
+    QuizInput:
+      type: object
+      required: [sectionId, difficulty, questionCount]
+      properties:
+        sectionId: { type: string, minLength: 1 }
+        difficulty: { type: string, enum: [EASY, MEDIUM, HARD, EXAM_SIMULATION] }
+        questionCount: { type: integer, minimum: 3, maximum: 12 }
+    QuizSummary:
+      type: object
+      required: [id, bookTitle, sectionTitle, difficulty, questionCount, status, createdAt]
+      properties:
+        id: { type: string }
+        bookTitle: { type: string }
+        sectionTitle: { type: string }
+        difficulty: { type: string, enum: [EASY, MEDIUM, HARD, EXAM_SIMULATION] }
+        questionCount: { type: integer }
+        status: { type: string, enum: [ACTIVE, COMPLETED] }
+        score: { type: ["integer", "null"] }
+        percentage: { type: ["number", "null"] }
+        createdAt: { type: string, format: date-time }
+    QuizDetail:
+      type: object
+      required: [id, bookTitle, sectionTitle, difficulty, status, questions, score]
+      properties:
+        id: { type: string }
+        bookTitle: { type: string }
+        sectionTitle: { type: string }
+        difficulty: { type: string, enum: [EASY, MEDIUM, HARD, EXAM_SIMULATION] }
+        status: { type: string, enum: [ACTIVE, COMPLETED] }
+        score: { type: integer }
+        percentage: { type: ["number", "null"] }
+        questions:
+          type: array
+          items: { $ref: "#/components/schemas/QuizQuestion" }
+    QuizQuestion:
+      type: object
+      required: [id, questionText, options, answeredIndex, correctAnswerIndex, explanation, concept, pageReferences]
+      properties:
+        id: { type: string }
+        questionText: { type: string }
+        options:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items: { type: string }
+        answeredIndex: { type: ["integer", "null"] }
+        correctAnswerIndex: { type: ["integer", "null"] }
+        explanation: { type: [string, "null"] }
+        concept: { type: string }
+        pageReferences:
+          type: array
+          items: { type: integer }
+    QuizAnswerInput:
+      type: object
+      required: [questionId, selectedIndex]
+      properties:
+        questionId: { type: string, minLength: 1 }
+        selectedIndex: { type: integer, minimum: 0, maximum: 3 }
+    QuizAnswerResult:
+      type: object
+      required: [isCorrect, correctAnswerIndex, explanation, buddyComment, completed, score, totalQuestions, xpAwarded]
+      properties:
+        isCorrect: { type: boolean }
+        correctAnswerIndex: { type: integer, minimum: 0, maximum: 3 }
+        explanation: { type: string }
+        buddyComment: { type: string }
+        completed: { type: boolean }
+        score: { type: integer }
+        totalQuestions: { type: integer }
+        xpAwarded: { type: integer }
+    StudyAnalytics:
+      type: object
+      required: [weeklyActivity, subjectAccuracy, totalStudyMinutes, currentStreak, completedQuizzes]
+      properties:
+        weeklyActivity:
+          type: array
+          items: { $ref: "#/components/schemas/DailyActivity" }
+        subjectAccuracy:
+          type: array
+          items: { $ref: "#/components/schemas/SubjectAccuracy" }
+        totalStudyMinutes: { type: integer }
+        currentStreak: { type: integer }
+        completedQuizzes: { type: integer }
+    DailyActivity:
+      type: object
+      required: [date, xp, minutes]
+      properties:
+        date: { type: string, format: date }
+        xp: { type: integer }
+        minutes: { type: integer }
+    SubjectAccuracy:
+      type: object
+      required: [subject, accuracy, attempts]
+      properties:
+        subject: { type: string }
+        accuracy: { type: number }
+        attempts: { type: integer }
+    ChatMessage:
+      type: object
+      required: [id, sender, text, createdAt]
+      properties:
+        id: { type: string }
+        sender: { type: string, enum: [user, buddy] }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+    ChatMessageInput:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, minLength: 1, maxLength: 4000 }
+        bookId: { type: string }
+        sectionId: { type: string }
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: integer, minimum: 1, maximum: 20971520 }
+        contentType: { type: string, enum: [application/pdf, text/plain] }
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+
